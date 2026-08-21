@@ -1,5 +1,79 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import * as XLSX from "xlsx";
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Luka ♥ Grace ・ 婚禮籌備控制台</title>
+<link rel="icon" href="data:,">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #ece3d3; }
+  #root { max-width: 900px; margin: 0 auto; padding: 16px; }
+  @media (min-width: 720px) { #root { padding: 32px 16px; } }
+</style>
+</head>
+<body>
+<div id="root">
+  <div style="text-align:center;padding:60px 20px;font-family:sans-serif;color:#a8695d;">
+    載入中…
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   FIREBASE 設定 — 請換成你自己 Firebase 專案的設定值
+   （Firebase 主控台 → 專案設定 → 一般 → 你的應用程式 → SDK 設定與程式碼片段）
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID",
+};
+
+firebase.initializeApp(firebaseConfig);
+const _db = firebase.firestore();
+/* 所有資料都存在同一份文件裡；若想同時架多個獨立網站，改這個字串即可分開資料 */
+const _docRef = _db.collection("wedding_planner_shared").doc("luka-grace-2026");
+
+/* ---------------------------------------------------------------------
+   window.storage 相容層：讓下面完全沿用原本 Claude Artifact 的程式碼，
+   不用改任何 get/set 呼叫。shared 參數固定視為 true（同一份共用文件）。
+   --------------------------------------------------------------------- */
+window.storage = {
+  async get(key) {
+    const snap = await _docRef.get();
+    const data = snap.exists ? snap.data() : {};
+    if (!(key in data)) throw new Error("key not found: " + key);
+    return { key, value: data[key], shared: true };
+  },
+  async set(key, value) {
+    await _docRef.set({ [key]: value }, { merge: true });
+    return { key, value, shared: true };
+  },
+  async delete(key) {
+    await _docRef.update({ [key]: firebase.firestore.FieldValue.delete() });
+    return { key, deleted: true, shared: true };
+  },
+  async list(prefix) {
+    const snap = await _docRef.get();
+    const data = snap.exists ? snap.data() : {};
+    const keys = Object.keys(data).filter((k) => !prefix || k.startsWith(prefix));
+    return { keys, shared: true };
+  },
+};
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useMemo } = React;
+
 
 /* ------------------------------------------------------------------ */
 /*  Seed data — imported from the couple's existing RSVP spreadsheet   */
@@ -222,7 +296,7 @@ function Pill({ children, tone }) {
 /* ------------------------------------------------------------------ */
 /*  Main App                                                           */
 /* ------------------------------------------------------------------ */
-export default function WeddingPlanner() {
+function WeddingPlanner() {
   const [guests, setGuests] = useState([]);
   const [tableCap, setTableCap] = useState(20);
   const [prepItems, setPrepItems] = useState([]);
@@ -1167,3 +1241,9 @@ function Style() {
     `}</style>
   );
 }
+
+const rootEl = document.getElementById("root");
+ReactDOM.createRoot(rootEl).render(<WeddingPlanner />);
+</script>
+</body>
+</html>
