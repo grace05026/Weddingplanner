@@ -1,0 +1,1431 @@
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import * as XLSX from "xlsx";
+
+/* ------------------------------------------------------------------ */
+/*  Seed data — imported from the couple's existing RSVP spreadsheet   */
+/*  (already-RSVP'd guests are assumed to have already received a     */
+/*   physical invitation, so mailSent defaults to true for these)     */
+/* ------------------------------------------------------------------ */
+const RAW_SEED = [
+  { id: "g1", name: "張慧慈", count: 1, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 1, childSeat: 0, note: "親估啊~進度突然加速，是妳爸媽害怕沒有人敢娶妳嗎?哈哈 祝妳幸福唷~也要繼續跟我們吵吵鬧鬧" },
+  { id: "g2", name: "翰林", count: 4, relation: "新郎 Luka 親友", side: "新郎", attendance: "只午宴", vegetarian: 0, childSeat: 1, note: "百發百中" },
+  { id: "g3", name: "粘文欣", count: 2, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "恭喜我的Bro❤️" },
+  { id: "g4", name: "杜基成", count: 2, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "恭喜你們！今年最期待的日子就是你們的婚禮！" },
+  { id: "g5", name: "盧詠庭", count: 2, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "" },
+  { id: "g6", name: "吳念庭", count: 3, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 1, note: "恭喜你們～我幼稚園同學跟我的高中同學🤣" },
+  { id: "g7", name: "吳嘉文", count: 1, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "" },
+  { id: "g8", name: "温婕如", count: 3, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 1, note: "恭喜杜&嚕卡結婚～祝百年好合👩‍❤️‍👨🩵" },
+  { id: "g9", name: "鄭婷方", count: 2, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "太開心了~~~~幸福快樂~~~" },
+  { id: "g10", name: "歐育雯", count: 2, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "期待😚" },
+  { id: "g11", name: "曾彥維", count: 2, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "華爾街還我錢" },
+  { id: "g12", name: "陳淨", count: 3, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 1, note: "恭喜杜卡！！終於輪到你們了，替你們開心🫶🏼" },
+  { id: "g13", name: "林庭吟", count: 1, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "恭喜～～～新娘好美😍" },
+  { id: "g14", name: "陳琦琳 Stella", count: 1, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "Congratulations" },
+  { id: "g15", name: "蔡孟哲", count: 2, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "" },
+  { id: "g16", name: "古筱萱", count: 1, relation: "新娘 Grace 親友", side: "新娘", attendance: "只午宴", vegetarian: 0, childSeat: 0, note: "恭喜恭喜！期待那天參加午宴" },
+  { id: "g17", name: "吳佩玲", count: 1, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "永遠幸福快樂❤️🩷💙💛" },
+  { id: "g18", name: "盧麗華", count: 4, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "" },
+  { id: "g19", name: "謝佩涵", count: 3, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "永浴愛河、幸福美滿♥" },
+  { id: "g20", name: "盧麗虹", count: 5, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 1, note: "" },
+  { id: "g21", name: "陳心遠", count: 3, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 1, note: "冠霈看你從高中慢慢變成一個男子漢，找到那麼漂亮的老婆，哥真的倍感欣慰" },
+  { id: "g22", name: "總磷", count: 2, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "恭喜帕吼哩系 百年好合 早生霈子👍🏻" },
+  { id: "g23", name: "邢櫻蘭", count: 4, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "" },
+  { id: "g24", name: "盧舜昌", count: 7, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "" },
+  { id: "g25", name: "何非凡", count: 1, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "照片好美😍😍😍" },
+  { id: "g26", name: "凌梅芳", count: 1, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "新婚快樂❤️" },
+  { id: "g27", name: "皓宣", count: 9, relation: "新郎 Luka 親友", side: "新郎", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "" },
+  { id: "g28", name: "張宇成", count: 1, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "百年好合、幸福快樂" },
+  { id: "g29", name: "力宥安(Yoanna)", count: 1, relation: "新娘 Grace 親友", side: "新娘", attendance: "證婚+午宴", vegetarian: 0, childSeat: 0, note: "" },
+  { id: "g30", name: "葉仕弘", count: 0, relation: "新郎 Luka 親友", side: "新郎", attendance: "未出席", vegetarian: 0, childSeat: 0, note: "恭喜冠霈和Grace，百年好合~ 12月有可能會在台灣，確定的話會盡快跟冠霈說!" },
+  { id: "g31", name: "簡仕彬", count: 2, relation: "新郎 Luka 親友", side: "新郎", attendance: "只午宴", vegetarian: 0, childSeat: 0, note: "恭喜🎉 有機會之後一起聊爸爸經😂" },
+];
+
+const SEED_GUESTS = RAW_SEED.map((g) => ({
+  ...g,
+  table: null,
+  cookieQty: 1,
+  cookieGiven: false,
+  mailSent: false,
+  mailMethod: "",
+  giftAmount: 0,
+  giftReceived: false,
+  checkedIn: false,
+  reminded: false,
+}));
+
+const ATTENDANCE_OPTIONS = ["證婚+午宴", "只午宴", "未出席", "未回覆"];
+const SIDE_OPTIONS = ["新郎", "新娘"];
+const MAIL_METHODS = ["親送", "郵寄", "電子喜帖", ""];
+const SEAT_COLORS = ["seat-c1", "seat-c2", "seat-c3", "seat-c4"];
+const STORAGE_KEY = "wedding_guests_v2";
+const TABLE_CAP_KEY = "wedding_table_capacity_v1";
+const PREP_KEY = "wedding_prep_v1";
+const TIMELINE_KEY = "wedding_timeline_v1";
+
+const STATUS_CYCLE = ["未開始", "進行中", "已完成"];
+
+/* 婚前準備表 — 由時程表 Excel 的重要日程/造型/賓客邀請/工作人員/儀式清單整理而來 */
+const SEED_PREP = [
+  { cat: "重要日程", item: "婚宴地點布置", content: "百世莊園 物5（場地＋布置）", vendor: "", status: "進行中" },
+  { cat: "重要日程", item: "拍婚紗", content: "", vendor: "", status: "已完成" },
+  { cat: "重要日程", item: "雙方家長見面", content: "", vendor: "", status: "已完成" },
+  { cat: "重要日程", item: "登記", content: "", vendor: "", status: "已完成" },
+  { cat: "重要日程", item: "蜜月", content: "9/18 出發", vendor: "", status: "未開始" },
+  { cat: "重要日程", item: "邀請", content: "發喜帖、喜餅、表單，目標 10/31 前完成", vendor: "", status: "進行中" },
+
+  { cat: "造型", item: "新娘婚紗", content: "證婚／進場／敬酒＋送客", vendor: "Lin haute", status: "已完成" },
+  { cat: "造型", item: "新郎西裝", content: "西裝、襯衫、領帶、皮鞋", vendor: "七顆梨", status: "未開始" },
+  { cat: "造型", item: "女方家長母親禮服", content: "媽媽洋裝", vendor: "", status: "已完成" },
+  { cat: "造型", item: "女方家長父親西裝", content: "爸爸西裝", vendor: "", status: "未開始" },
+  { cat: "造型", item: "女方家長新秘", content: "媽媽妝髮", vendor: "Nancy", status: "已完成" },
+  { cat: "造型", item: "男方家長母親禮服", content: "媽媽洋裝", vendor: "", status: "未開始" },
+  { cat: "造型", item: "男方家長父親西裝", content: "爸爸西裝", vendor: "", status: "未開始" },
+  { cat: "造型", item: "男方家長新秘", content: "媽媽妝髮", vendor: "jenny", status: "已完成" },
+
+  { cat: "賓客與邀請", item: "賓客名單", content: "雙方家庭提供名單", vendor: "", status: "進行中" },
+  { cat: "賓客與邀請", item: "喜帖設計＋印刷", content: "長輩60份＋朋友20份", vendor: "", status: "已完成" },
+  { cat: "賓客與邀請", item: "喜帖寄送", content: "電子喜帖", vendor: "", status: "進行中" },
+  { cat: "賓客與邀請", item: "場地座位表", content: "安排桌次、家族／朋友分區", vendor: "", status: "未開始" },
+  { cat: "賓客與邀請", item: "喜餅（中式）", content: "確認份數", vendor: "世唯", status: "未開始" },
+  { cat: "賓客與邀請", item: "喜餅（西式）", content: "軟餅乾盒 $490／份", vendor: "koekje.club", status: "未開始" },
+  { cat: "賓客與邀請", item: "未到場喜餅", content: "軟餅乾盒 $720／份", vendor: "koekje.club", status: "未開始" },
+
+  { cat: "工作人員", item: "新秘", content: "婚禮當天造型與妝容", vendor: "Lori.Cherry", status: "進行中" },
+  { cat: "工作人員", item: "婚攝", content: "婚禮拍攝", vendor: "種子影像", status: "進行中" },
+  { cat: "工作人員", item: "婚禮司儀／場控", content: "婚禮主持、流程引導", vendor: "百世莊園", status: "未開始" },
+  { cat: "工作人員", item: "工作人員便當", content: "確認份數", vendor: "", status: "未開始" },
+  { cat: "工作人員", item: "工作人員紅包", content: "確認份數", vendor: "", status: "未開始" },
+
+  { cat: "簽到收禮", item: "禮金", content: "禮金桶×2、貼紙、筆、紅包袋、說明版", vendor: "", status: "未開始" },
+  { cat: "簽到收禮", item: "簽到", content: "撲克牌簽到、奇異筆、說明版，底片相機", vendor: "", status: "未開始" },
+  { cat: "簽到收禮", item: "相本", content: "印刷放大照／婚紗相本", vendor: "", status: "未開始" },
+
+  { cat: "證婚儀式", item: "戒指", content: "結婚對戒、戒指盒", vendor: "", status: "未開始" },
+  { cat: "證婚儀式", item: "證婚主持", content: "主持＋牧師", vendor: "", status: "未開始" },
+  { cat: "證婚儀式", item: "證婚誓言卡", content: "", vendor: "", status: "未開始" },
+  { cat: "證婚儀式", item: "證婚書", content: "結婚證書及結婚書約", vendor: "", status: "未開始" },
+  { cat: "證婚儀式", item: "儀式小活動", content: "花瓣／泡泡機", vendor: "", status: "未開始" },
+  { cat: "證婚儀式", item: "儀式音樂", content: "歌單", vendor: "", status: "未開始" },
+  { cat: "證婚儀式", item: "中場點心", content: "猜心活動", vendor: "", status: "未開始" },
+
+  { cat: "進場與影片", item: "進場音樂", content: "", vendor: "", status: "未開始" },
+  { cat: "進場與影片", item: "空拍／花絮影片", content: "免費贈送影片", vendor: "HapBi Wed", status: "已完成" },
+  { cat: "進場與影片", item: "成長影片", content: "二進前播放", vendor: "", status: "未開始" },
+
+  { cat: "二進活動", item: "二進活動內容", content: "", vendor: "", status: "未開始" },
+  { cat: "二進活動", item: "上台名單", content: "", vendor: "", status: "未開始" },
+  { cat: "二進活動", item: "遊戲＆禮物", content: "男生遊戲＆Kahoot問答，禮物×5", vendor: "", status: "未開始" },
+
+  { cat: "送客儀式", item: "發喜餅負責人", content: "現場發送安排", vendor: "詠庭／嘉文", status: "未開始" },
+  { cat: "送客儀式", item: "喜糖", content: "", vendor: "百世莊園", status: "未開始" },
+];
+
+/* 當天時程 — 以已確認的迎賓/證婚/入席時間為錨點，銜接午宴當天流程草稿 */
+const SEED_TIMELINE = [
+  { time: "10:45", title: "迎賓", note: "賓客入場、簽到、收禮", owner: "", done: false },
+  { time: "11:00", title: "證婚儀式開始", note: "司儀引言、進場、交換誓詞戒指、拋捧花、禮成退場（約30分鐘）", owner: "", done: false },
+  { time: "11:30", title: "巡場拍照／賓客茶敘", note: "銜接證婚與午宴之間的空檔，可依實際彩排調整", owner: "", done: false },
+  { time: "12:00", title: "午宴入席", note: "", owner: "", done: false },
+  { time: "12:30", title: "午宴開席・主持人開場・一進", note: "", owner: "", done: false },
+  { time: "12:35", title: "播放婚紗MV", note: "", owner: "", done: false },
+  { time: "12:40", title: "新人第一次進場、交手、致詞、舉杯", note: "雙方親友致詞", owner: "", done: false },
+  { time: "12:55", title: "新人入席用餐", note: "", owner: "", done: false },
+  { time: "13:05", title: "二進準備換裝＋造型", note: "帶二進禮", owner: "", done: false },
+  { time: "13:30", title: "播放成長MV", note: "進場前播放", owner: "", done: false },
+  { time: "13:35", title: "新人第二次進場、互動遊戲、抽捧花、逐桌敬酒", note: "刮刮卡賓果、踩汽球、抽捧花／花椰菜", owner: "", done: false },
+  { time: "14:15", title: "送客換裝", note: "", owner: "", done: false },
+  { time: "14:35", title: "準備送客、發喜餅、親友合照", note: "喜糖／送客禮", owner: "詠庭／嘉文", done: false },
+  { time: "15:30", title: "收拾場地", note: "", owner: "", done: false },
+];
+
+function uid() {
+  return "g" + Math.random().toString(36).slice(2, 10);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Excel import — parse an uploaded RSVP-style .xlsx into guest rows  */
+/* ------------------------------------------------------------------ */
+function findKey(row, keywords) {
+  const keys = Object.keys(row);
+  for (const kw of keywords) {
+    const hit = keys.find((k) => k.includes(kw));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function parseAttendance(raw) {
+  const text = String(raw || "");
+  if (text.includes("無法出席")) return "未出席";
+  if (text.includes("只參加午宴") || text.includes("只午宴") || text.includes("只出席午宴")) return "只午宴";
+  if (text.includes("證婚")) return "證婚+午宴";
+  return "未回覆";
+}
+
+async function parseGuestExcel(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  let sheetName = wb.SheetNames.find((n) => n.toUpperCase().includes("RSVP"));
+  if (!sheetName) {
+    sheetName = wb.SheetNames.find((n) => {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: "" });
+      return rows.length && findKey(rows[0], ["姓名"]);
+    });
+  }
+  if (!sheetName) sheetName = wb.SheetNames[0];
+
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+  const results = [];
+  rows.forEach((row) => {
+    const nameKey = findKey(row, ["姓名"]);
+    if (!nameKey) return;
+    const name = String(row[nameKey] || "").trim();
+    if (!name) return;
+
+    const countKey = findKey(row, ["總人數", "人數"]);
+    const relationKey = findKey(row, ["關係"]);
+    const attendanceKey = findKey(row, ["出席場次", "出席"]);
+    const vegKey = findKey(row, ["素食"]);
+    const childKey = findKey(row, ["兒童座椅", "兒童"]);
+    const noteKey = findKey(row, ["想和我們", "想跟我們", "留言", "想說的話"]);
+
+    const relation = relationKey ? String(row[relationKey] || "") : "";
+    const side = relation.includes("新郎") ? "新郎" : relation.includes("新娘") ? "新娘" : "";
+
+    results.push({
+      name,
+      count: countKey && row[countKey] !== "" ? Number(row[countKey]) || 0 : 0,
+      relation,
+      side,
+      attendance: attendanceKey ? parseAttendance(row[attendanceKey]) : "未回覆",
+      vegetarian: vegKey && row[vegKey] !== "" ? Number(row[vegKey]) || 0 : 0,
+      childSeat: childKey && row[childKey] !== "" ? Number(row[childKey]) || 0 : 0,
+      note: noteKey ? String(row[noteKey] || "") : "",
+    });
+  });
+  return results;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Small building blocks                                              */
+/* ------------------------------------------------------------------ */
+function Stat({ label, value, sub, tone }) {
+  return (
+    <div className={`stat-card tone-${tone || "ink"}`}>
+      <div className="stat-value">{value}</div>
+      <div className="stat-label">{label}</div>
+      {sub && <div className="stat-sub">{sub}</div>}
+    </div>
+  );
+}
+
+function Pill({ children, tone }) {
+  return <span className={`pill tone-${tone || "ink"}`}>{children}</span>;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main App                                                           */
+/* ------------------------------------------------------------------ */
+export default function WeddingPlanner() {
+  const [guests, setGuests] = useState([]);
+  const [tableCap, setTableCap] = useState(100);
+  const [prepItems, setPrepItems] = useState([]);
+  const [timeline, setTimeline] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [tab, setTab] = useState("overview");
+  const [saveState, setSaveState] = useState("idle");
+  const [importMsg, setImportMsg] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const saveTimer = useRef(null);
+  const prepSaveTimer = useRef(null);
+  const timelineSaveTimer = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await window.storage.get(STORAGE_KEY, true);
+        if (res && res.value) {
+          setGuests(JSON.parse(res.value));
+        } else {
+          setGuests(SEED_GUESTS);
+          await window.storage.set(STORAGE_KEY, JSON.stringify(SEED_GUESTS), true);
+        }
+      } catch (e) {
+        setGuests(SEED_GUESTS);
+      }
+      try {
+        const capRes = await window.storage.get(TABLE_CAP_KEY, true);
+        if (capRes && capRes.value) setTableCap(JSON.parse(capRes.value));
+      } catch (e) {
+        /* default stays */
+      }
+      try {
+        const prepRes = await window.storage.get(PREP_KEY, true);
+        if (prepRes && prepRes.value) {
+          setPrepItems(JSON.parse(prepRes.value));
+        } else {
+          const seeded = SEED_PREP.map((p) => ({ ...p, id: uid() }));
+          setPrepItems(seeded);
+          await window.storage.set(PREP_KEY, JSON.stringify(seeded), true);
+        }
+      } catch (e) {
+        setPrepItems(SEED_PREP.map((p) => ({ ...p, id: uid() })));
+      }
+      try {
+        const tlRes = await window.storage.get(TIMELINE_KEY, true);
+        if (tlRes && tlRes.value) {
+          setTimeline(JSON.parse(tlRes.value));
+        } else {
+          const seeded = SEED_TIMELINE.map((t) => ({ ...t, id: uid() }));
+          setTimeline(seeded);
+          await window.storage.set(TIMELINE_KEY, JSON.stringify(seeded), true);
+        }
+      } catch (e) {
+        setTimeline(SEED_TIMELINE.map((t) => ({ ...t, id: uid() })));
+      }
+      setLoaded(true);
+    })();
+  }, []);
+
+  const persist = (next) => {
+    setGuests(next);
+    setSaveState("saving");
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const ok = await window.storage.set(STORAGE_KEY, JSON.stringify(next), true);
+        setSaveState(ok ? "saved" : "error");
+      } catch (e) {
+        setSaveState("error");
+      }
+    }, 400);
+  };
+
+  const persistCap = async (val) => {
+    setTableCap(val);
+    try {
+      await window.storage.set(TABLE_CAP_KEY, JSON.stringify(val), true);
+    } catch (e) {
+      /* ignore */
+    }
+  };
+
+  const persistPrep = (next) => {
+    setPrepItems(next);
+    setSaveState("saving");
+    if (prepSaveTimer.current) clearTimeout(prepSaveTimer.current);
+    prepSaveTimer.current = setTimeout(async () => {
+      try {
+        const ok = await window.storage.set(PREP_KEY, JSON.stringify(next), true);
+        setSaveState(ok ? "saved" : "error");
+      } catch (e) {
+        setSaveState("error");
+      }
+    }, 400);
+  };
+  const updatePrep = (id, patch) => persistPrep(prepItems.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  const addPrep = (p) => persistPrep([...prepItems, { ...p, id: uid() }]);
+  const removePrep = (id) => persistPrep(prepItems.filter((p) => p.id !== id));
+  const reorderPrep = (next) => persistPrep(next);
+
+  const persistTimeline = (next) => {
+    setTimeline(next);
+    setSaveState("saving");
+    if (timelineSaveTimer.current) clearTimeout(timelineSaveTimer.current);
+    timelineSaveTimer.current = setTimeout(async () => {
+      try {
+        const ok = await window.storage.set(TIMELINE_KEY, JSON.stringify(next), true);
+        setSaveState(ok ? "saved" : "error");
+      } catch (e) {
+        setSaveState("error");
+      }
+    }, 400);
+  };
+  const updateTimelineItem = (id, patch) => persistTimeline(timeline.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const addTimelineItem = (t) => persistTimeline([...timeline, { ...t, id: uid() }]);
+  const removeTimelineItem = (id) => persistTimeline(timeline.filter((t) => t.id !== id));
+  const reorderTimeline = (next) => persistTimeline(next);
+
+  const updateGuest = (id, patch) => persist(guests.map((g) => (g.id === id ? { ...g, ...patch } : g)));
+  const addGuest = (guest) =>
+    persist([...guests, { ...guest, id: uid(), table: null, cookieQty: 1, cookieGiven: false, giftAmount: 0, giftReceived: false, checkedIn: false, reminded: false }]);
+  const removeGuest = (id) => persist(guests.filter((g) => g.id !== id));
+  const resetMailStatus = () => persist(guests.map((g) => ({ ...g, mailSent: false })));
+
+  const importFromExcel = async (file) => {
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const rows = await parseGuestExcel(file);
+      if (rows.length === 0) {
+        setImportMsg({ tone: "error", text: "找不到可辨識的賓客資料，請確認檔案裡有「姓名」欄位的工作表。" });
+        setImporting(false);
+        return;
+      }
+      let added = 0;
+      let updated = 0;
+      const next = [...guests];
+      rows.forEach((row) => {
+        const idx = next.findIndex((g) => g.name === row.name);
+        if (idx >= 0) {
+          next[idx] = {
+            ...next[idx],
+            count: row.count,
+            relation: row.relation || next[idx].relation,
+            side: row.side || next[idx].side,
+            attendance: row.attendance,
+            vegetarian: row.vegetarian,
+            childSeat: row.childSeat,
+            note: row.note || next[idx].note,
+          };
+          updated += 1;
+        } else {
+          next.push({
+            id: uid(),
+            name: row.name,
+            count: row.count,
+            relation: row.relation,
+            side: row.side,
+            attendance: row.attendance,
+            vegetarian: row.vegetarian,
+            childSeat: row.childSeat,
+            note: row.note,
+            table: null,
+            cookieQty: 1,
+            cookieGiven: false,
+            mailSent: false,
+            mailMethod: "",
+            giftAmount: 0,
+            giftReceived: false,
+            checkedIn: false,
+            reminded: false,
+          });
+          added += 1;
+        }
+      });
+      persist(next);
+      setImportMsg({ tone: "success", text: `匯入完成：新增 ${added} 組、更新 ${updated} 組（座位／喜餅／喜帖狀態不受影響）` });
+    } catch (e) {
+      setImportMsg({ tone: "error", text: "讀取檔案失敗，請確認上傳的是 .xlsx 檔案。" });
+    }
+    setImporting(false);
+  };
+
+  const autoAssignSeats = () => {
+    const attending = guests.filter((g) => g.attendance === "證婚+午宴" || g.attendance === "只午宴");
+    let h1 = attending.filter((g) => g.table === 1).reduce((s, g) => s + g.count, 0);
+    let h2 = attending.filter((g) => g.table === 2).reduce((s, g) => s + g.count, 0);
+    const toPlace = attending.filter((g) => !g.table).sort((a, b) => b.count - a.count);
+    const patchMap = {};
+    toPlace.forEach((g) => {
+      if (h1 <= h2) {
+        patchMap[g.id] = 1;
+        h1 += g.count;
+      } else {
+        patchMap[g.id] = 2;
+        h2 += g.count;
+      }
+    });
+    persist(guests.map((g) => (patchMap[g.id] ? { ...g, table: patchMap[g.id] } : g)));
+  };
+
+  const stats = useMemo(() => {
+    const attending = guests.filter((g) => g.attendance === "證婚+午宴" || g.attendance === "只午宴");
+    const totalHeads = attending.reduce((s, g) => s + (g.count || 0), 0);
+    const ceremony = attending.filter((g) => g.attendance === "證婚+午宴").reduce((s, g) => s + g.count, 0);
+    const lunchOnly = attending.filter((g) => g.attendance === "只午宴").reduce((s, g) => s + g.count, 0);
+    const notAttending = guests.filter((g) => g.attendance === "未出席").reduce((s, g) => s + (g.count || 0), 0);
+    const notAttendingParties = guests.filter((g) => g.attendance === "未出席").length;
+    const noReplyParties = guests.filter((g) => g.attendance === "未回覆").length;
+    const veg = attending.reduce((s, g) => s + (g.vegetarian || 0), 0);
+    const childSeats = attending.reduce((s, g) => s + (g.childSeat || 0), 0);
+    const groomSide = attending.filter((g) => g.side === "新郎").reduce((s, g) => s + g.count, 0);
+    const brideSide = attending.filter((g) => g.side === "新娘").reduce((s, g) => s + g.count, 0);
+    const parties = attending.length;
+    const totalParties = guests.length;
+    const mailSentParties = guests.filter((g) => g.mailSent).length;
+    const giftTotal = guests.reduce((s, g) => s + (g.giftAmount || 0), 0);
+    const giftParties = guests.filter((g) => (g.giftAmount || 0) > 0).length;
+    const cookieDoneParties = attending.filter((g) => g.cookieGiven).length;
+    return {
+      totalHeads, ceremony, lunchOnly, notAttending, notAttendingParties, noReplyParties, veg, childSeats,
+      groomSide, brideSide, parties, totalParties, mailSentParties, giftTotal, giftParties, cookieDoneParties,
+    };
+  }, [guests]);
+
+  const attendingGuests = useMemo(
+    () => guests.filter((g) => g.attendance === "證婚+午宴" || g.attendance === "只午宴"),
+    [guests]
+  );
+  const unassigned = attendingGuests.filter((g) => !g.table);
+  const table1 = attendingGuests.filter((g) => g.table === 1);
+  const table2 = attendingGuests.filter((g) => g.table === 2);
+  const table1Heads = table1.reduce((s, g) => s + g.count, 0);
+  const table2Heads = table2.reduce((s, g) => s + g.count, 0);
+
+  const cookieDone = attendingGuests.filter((g) => g.cookieGiven).reduce((s, g) => s + (g.cookieQty || 1), 0);
+  const cookieTotal = attendingGuests.reduce((s, g) => s + (g.cookieQty || 1), 0);
+
+  if (!loaded) {
+    return (
+      <div className="wp-root wp-loading">
+        <Style />
+        <div className="loading-mark">Luka ♥ Grace</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="wp-root">
+      <Style />
+      <header className="wp-header">
+        <div className="wp-header-inner">
+          <div className="wp-eyebrow">2026 · 12 · 05 · 百世莊園</div>
+          <h1 className="wp-title">Luka <span className="amp">♥</span> Grace</h1>
+          <div className="wp-sub">婚禮籌備控制台</div>
+        </div>
+        <div className={`save-indicator save-${saveState}`}>
+          {saveState === "saving" && "儲存中…"}
+          {saveState === "saved" && "已儲存"}
+          {saveState === "error" && "儲存失敗"}
+          {saveState === "idle" && "\u00A0"}
+        </div>
+      </header>
+
+      <nav className="wp-tabs">
+        {[
+          ["overview", "總覽 · 統計"],
+          ["prep", "婚前準備"],
+          ["guests", "賓客名單 / RSVP"],
+          ["seating", "座位安排"],
+          ["timeline", "當天時程"],
+          ["cookies", "報到・發喜餅"],
+        ].map(([key, label]) => (
+          <button key={key} className={`wp-tab ${tab === key ? "active" : ""}`} onClick={() => setTab(key)}>
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      <main className="wp-main">
+        {tab === "overview" && <OverviewTab stats={stats} guests={guests} onUpdate={updateGuest} />}
+        {tab === "prep" && (
+          <PrepTab items={prepItems} onUpdate={updatePrep} onAdd={addPrep} onRemove={removePrep} onReorder={reorderPrep} />
+        )}
+        {tab === "timeline" && (
+          <TimelineTab items={timeline} onUpdate={updateTimelineItem} onAdd={addTimelineItem} onRemove={removeTimelineItem} onReorder={reorderTimeline} />
+        )}
+        {tab === "guests" && (
+          <GuestsTab
+            guests={guests}
+            onUpdate={updateGuest}
+            onAdd={addGuest}
+            onRemove={removeGuest}
+            onImportFile={importFromExcel}
+            importing={importing}
+            importMsg={importMsg}
+            onDismissImportMsg={() => setImportMsg(null)}
+            onResetMail={resetMailStatus}
+          />
+        )}
+        {tab === "seating" && (
+          <SeatingTab
+            unassigned={unassigned}
+            table1={table1}
+            table2={table2}
+            table1Heads={table1Heads}
+            table2Heads={table2Heads}
+            tableCap={tableCap}
+            onCapChange={persistCap}
+            onAssign={(id, tableNo) => updateGuest(id, { table: tableNo })}
+            onAutoAssign={autoAssignSeats}
+          />
+        )}
+        {tab === "cookies" && (
+          <CookiesTab
+            guests={attendingGuests}
+            cookieDone={cookieDone}
+            cookieTotal={cookieTotal}
+            onToggle={(id, val) => updateGuest(id, { cookieGiven: val })}
+            onQtyChange={(id, val) => updateGuest(id, { cookieQty: val })}
+            onCheckIn={(id, val) => updateGuest(id, { checkedIn: val })}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Overview Tab — grouped into 3 sections to avoid duplicate stats    */
+/* ------------------------------------------------------------------ */
+function OverviewTab({ stats, guests, onUpdate }) {
+  const noReply = guests.filter((g) => g.attendance === "未回覆");
+
+  return (
+    <div className="pane">
+      <div className="section-title">喜帖寄送</div>
+      <div className="stat-grid">
+        <Stat label="已寄出喜帖" value={`${stats.mailSentParties} / ${stats.totalParties}`} sub="組(戶)" tone="gold" />
+        <Stat label="尚未回覆" value={stats.noReplyParties} sub="組(戶)" tone="muted" />
+      </div>
+
+      <div className="section-title">出席狀況</div>
+      <div className="stat-grid">
+        <Stat label="確定出席人數" value={stats.totalHeads} sub={`共 ${stats.parties} 組賓客`} tone="rose" />
+        <Stat label="證婚＋午宴" value={stats.ceremony} tone="ink" />
+        <Stat label="僅午宴" value={stats.lunchOnly} tone="ink" />
+        <Stat label="無法出席" value={stats.notAttendingParties} sub={stats.notAttending ? `共 ${stats.notAttending} 人` : "組"} tone="muted" />
+      </div>
+
+      <div className="section-title">特殊需求</div>
+      <div className="stat-grid">
+        <Stat label="素食需求" value={stats.veg} tone="sage" />
+        <Stat label="兒童座椅" value={stats.childSeats} tone="sage" />
+      </div>
+
+      <div className="section-title">喜餅與禮金</div>
+      <div className="stat-grid">
+        <Stat label="已發喜餅" value={`${stats.cookieDoneParties} / ${stats.parties}`} sub="組" tone="gold" />
+        <Stat label="已收禮金" value={`$${stats.giftTotal.toLocaleString()}`} sub={`共 ${stats.giftParties} 組`} tone="rose" />
+      </div>
+
+      <div className="side-split">
+        <div className="side-block">
+          <div className="side-label">新郎 Luka 親友</div>
+          <div className="side-bar-track">
+            <div className="side-bar-fill groom" style={{ width: `${stats.totalHeads ? (stats.groomSide / stats.totalHeads) * 100 : 0}%` }} />
+          </div>
+          <div className="side-num">{stats.groomSide} 人</div>
+        </div>
+        <div className="side-block">
+          <div className="side-label">新娘 Grace 親友</div>
+          <div className="side-bar-track">
+            <div className="side-bar-fill bride" style={{ width: `${stats.totalHeads ? (stats.brideSide / stats.totalHeads) * 100 : 0}%` }} />
+          </div>
+          <div className="side-num">{stats.brideSide} 人</div>
+        </div>
+      </div>
+
+      <div className="toolbar no-print">
+        <div className="section-title" style={{ flex: 1 }}>尚未回覆名單（{noReply.length} 組）</div>
+        <button className="btn-secondary" onClick={() => window.print()}>🖨 列印</button>
+      </div>
+      <div className="reply-list">
+        {noReply.map((g) => (
+          <label className={`reply-row ${g.reminded ? "done" : ""}`} key={g.id}>
+            <input
+              type="checkbox"
+              className="no-print-inline"
+              checked={!!g.reminded}
+              onChange={(e) => onUpdate(g.id, { reminded: e.target.checked })}
+            />
+            <span className="reply-name">{g.name}</span>
+            <span className="reply-relation">{g.relation}</span>
+            <span className="reply-reminded-label">{g.reminded ? "已提醒" : "未提醒"}</span>
+          </label>
+        ))}
+        {noReply.length === 0 && <div className="empty-hint">目前沒有尚未回覆的賓客 🎉</div>}
+      </div>
+
+      <div className="section-title">最新留言</div>
+      <div className="note-wall">
+        {guests.filter((g) => g.note && g.note.trim()).slice(-8).reverse().map((g) => (
+          <div className="note-card" key={g.id}>
+            <div className="note-name">{g.name}</div>
+            <div className="note-text">{g.note}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Guests Tab — list + add RSVP + mail tracking                       */
+/* ------------------------------------------------------------------ */
+function GuestsTab({ guests, onUpdate, onAdd, onRemove, onImportFile, importing, importMsg, onDismissImportMsg, onResetMail }) {
+  const [query, setQuery] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [sideFilter, setSideFilter] = useState("all");
+  const fileRef = useRef(null);
+  const [form, setForm] = useState({
+    name: "", count: 1, relation: "", side: "新郎", attendance: "未回覆",
+    vegetarian: 0, childSeat: 0, note: "", mailSent: false, mailMethod: "",
+  });
+
+  const filtered = guests
+    .filter((g) => g.name.includes(query) || (g.relation || "").includes(query))
+    .filter((g) => sideFilter === "all" || g.side === sideFilter);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    onAdd({
+      ...form,
+      count: Number(form.count) || 1,
+      vegetarian: Number(form.vegetarian) || 0,
+      childSeat: Number(form.childSeat) || 0,
+    });
+    setForm({ name: "", count: 1, relation: "", side: "新郎", attendance: "未回覆", vegetarian: 0, childSeat: 0, note: "", mailSent: false, mailMethod: "" });
+    setShowForm(false);
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) onImportFile(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div className="pane">
+      {importMsg && (
+        <div className={`import-banner tone-${importMsg.tone}`}>
+          <span>{importMsg.text}</span>
+          <button onClick={onDismissImportMsg}>✕</button>
+        </div>
+      )}
+
+      <div className="toolbar">
+        <input className="search-input" placeholder="搜尋姓名或關係…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="side-filter">
+          {["all", "新郎", "新娘"].map((s) => (
+            <button key={s} className={`side-filter-btn ${sideFilter === s ? "active" : ""}`} onClick={() => setSideFilter(s)}>
+              {s === "all" ? "全部" : s}
+            </button>
+          ))}
+        </div>
+        <input type="file" accept=".xlsx,.xls" ref={fileRef} style={{ display: "none" }} onChange={handleFileChange} />
+        <button className="btn-secondary" onClick={() => fileRef.current && fileRef.current.click()} disabled={importing}>
+          {importing ? "匯入中…" : "📤 匯入更新 (Excel)"}
+        </button>
+        <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>{showForm ? "取消" : "＋ 新增賓客"}</button>
+      </div>
+      <div className="toolbar-hint">💡 喜帖預計婚禮前一週才寄送，「喜帖」欄位請先保持未勾選；有寄出再逐一打勾。若已誤勾，可<button className="link-btn" onClick={onResetMail}>一鍵重設全部為未寄送</button>。</div>
+
+      {showForm && (
+        <form className="rsvp-form" onSubmit={submit}>
+          <div className="form-row">
+            <label>姓名<input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+            <label>總人數<input type="number" min="0" value={form.count} onChange={(e) => setForm({ ...form, count: e.target.value })} /></label>
+            <label>邀請方<select value={form.side} onChange={(e) => setForm({ ...form, side: e.target.value })}>{SIDE_OPTIONS.map((s) => <option key={s}>{s}</option>)}</select></label>
+          </div>
+          <div className="form-row">
+            <label className="wide">與新人的關係<input value={form.relation} onChange={(e) => setForm({ ...form, relation: e.target.value })} /></label>
+            <label>出席場次<select value={form.attendance} onChange={(e) => setForm({ ...form, attendance: e.target.value })}>{ATTENDANCE_OPTIONS.map((s) => <option key={s}>{s}</option>)}</select></label>
+          </div>
+          <div className="form-row">
+            <label>喜帖狀態
+              <select value={form.mailSent ? "yes" : "no"} onChange={(e) => setForm({ ...form, mailSent: e.target.value === "yes" })}>
+                <option value="no">尚未寄送</option>
+                <option value="yes">已寄送</option>
+              </select>
+            </label>
+            <label>寄送方式
+              <select value={form.mailMethod} onChange={(e) => setForm({ ...form, mailMethod: e.target.value })}>
+                {MAIL_METHODS.map((m) => <option key={m} value={m}>{m || "未指定"}</option>)}
+              </select>
+            </label>
+            <label>素食人數<input type="number" min="0" value={form.vegetarian} onChange={(e) => setForm({ ...form, vegetarian: e.target.value })} /></label>
+            <label>兒童座椅<input type="number" min="0" value={form.childSeat} onChange={(e) => setForm({ ...form, childSeat: e.target.value })} /></label>
+          </div>
+          <label className="wide">想說的話<textarea rows={2} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></label>
+          <button className="btn-primary" type="submit">加入名單</button>
+        </form>
+      )}
+
+      <div className="guest-table-wrap">
+        <table className="guest-table">
+          <thead>
+            <tr>
+              <th>姓名</th><th>人數</th><th>關係</th><th>出席場次</th><th>喜帖</th><th>素食</th><th>兒椅</th><th>喜餅</th><th>禮金</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((g) => (
+              <tr key={g.id}>
+                <td className="cell-name">{g.name}</td>
+                <td><input type="number" className="mini-input" min="0" value={g.count} onChange={(e) => onUpdate(g.id, { count: Number(e.target.value) || 0 })} /></td>
+                <td className="cell-relation">{g.relation}</td>
+                <td>
+                  <select className="mini-select" value={g.attendance} onChange={(e) => onUpdate(g.id, { attendance: e.target.value })}>
+                    {ATTENDANCE_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </td>
+                <td>
+                  <label className="mail-check">
+                    <input type="checkbox" checked={!!g.mailSent} onChange={(e) => onUpdate(g.id, { mailSent: e.target.checked })} />
+                  </label>
+                </td>
+                <td><input type="number" className="mini-input" min="0" value={g.vegetarian} onChange={(e) => onUpdate(g.id, { vegetarian: Number(e.target.value) || 0 })} /></td>
+                <td><input type="number" className="mini-input" min="0" value={g.childSeat} onChange={(e) => onUpdate(g.id, { childSeat: Number(e.target.value) || 0 })} /></td>
+                <td>
+                  <label className="mail-check">
+                    <input type="checkbox" checked={!!g.cookieGiven} onChange={(e) => onUpdate(g.id, { cookieGiven: e.target.checked })} title="已發喜餅" />
+                  </label>
+                </td>
+                <td>
+                  <div className="gift-cell">
+                    <input
+                      type="number" className="mini-input gift-input" min="0"
+                      value={g.giftAmount || 0}
+                      onChange={(e) => onUpdate(g.id, { giftAmount: Number(e.target.value) || 0, giftReceived: Number(e.target.value) > 0 })}
+                      title="禮金金額"
+                    />
+                  </div>
+                </td>
+                <td><button className="btn-ghost-danger" onClick={() => onRemove(g.id)} title="刪除">✕</button></td>
+              </tr>
+            ))}
+            {filtered.length === 0 && <tr><td colSpan={10} className="empty-row">沒有符合的賓客</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Seating Tab — two long tables with a real visual layout             */
+/* ------------------------------------------------------------------ */
+function SeatingTab({ unassigned, table1, table2, table1Heads, table2Heads, tableCap, onCapChange, onAssign, onAutoAssign }) {
+  const [sideFilter, setSideFilter] = useState("all");
+  const filteredUnassigned = sideFilter === "all" ? unassigned : unassigned.filter((g) => g.side === sideFilter);
+
+  return (
+    <div className="pane">
+      <div className="seating-controls no-print">
+        <label>每桌容量<input type="number" className="mini-input" min="1" value={tableCap} onChange={(e) => onCapChange(Number(e.target.value) || 1)} />人</label>
+        <div className="side-filter">
+          {["all", "新郎", "新娘"].map((s) => (
+            <button key={s} className={`side-filter-btn ${sideFilter === s ? "active" : ""}`} onClick={() => setSideFilter(s)}>
+              {s === "all" ? "全部" : s}
+            </button>
+          ))}
+        </div>
+        <button className="btn-secondary" onClick={onAutoAssign}>⚡ 自動排位（剩餘賓客依人數自動平均分桌）</button>
+        <button className="btn-secondary" onClick={() => window.print()}>🖨 列印座位表</button>
+      </div>
+
+      <div className="section-title no-print">未安排座位 ({filteredUnassigned.reduce((s, g) => s + g.count, 0)} 人 · {filteredUnassigned.length} 組)</div>
+      <div className="chip-row no-print">
+        {filteredUnassigned.map((g) => (
+          <div className="guest-chip" key={g.id}>
+            <span className="chip-name">{g.name}</span>
+            <span className="chip-count">{g.count}人</span>
+            <div className="chip-actions">
+              <button onClick={() => onAssign(g.id, 1)}>→長桌一</button>
+              <button onClick={() => onAssign(g.id, 2)}>→長桌二</button>
+            </div>
+          </div>
+        ))}
+        {filteredUnassigned.length === 0 && <div className="empty-hint">沒有符合篩選條件的未安排賓客 🎉</div>}
+      </div>
+
+      <div className="tables-grid">
+        <LongTable title="長桌一" guests={table1} heads={table1Heads} cap={tableCap} otherTable={2} sideFilter={sideFilter} onRemove={(id) => onAssign(id, null)} onMove={(id, t) => onAssign(id, t)} />
+        <LongTable title="長桌二" guests={table2} heads={table2Heads} cap={tableCap} otherTable={1} sideFilter={sideFilter} onRemove={(id) => onAssign(id, null)} onMove={(id, t) => onAssign(id, t)} />
+      </div>
+    </div>
+  );
+}
+
+function LongTable({ title, guests, heads, cap, otherTable, sideFilter, onRemove, onMove }) {
+  const over = heads > cap;
+  const capLeft = Math.ceil(cap / 2);
+  const capRight = cap - capLeft;
+  const filteredList = !sideFilter || sideFilter === "all" ? guests : guests.filter((g) => g.side === sideFilter);
+
+  // distribute guest groups sequentially: fill left side, then right side, then overflow
+  let leftRemain = capLeft;
+  let rightRemain = capRight;
+  const leftSegs = [];
+  const rightSegs = [];
+  const overflowSegs = [];
+  guests.forEach((g, i) => {
+    const seg = { ...g, colorClass: SEAT_COLORS[i % SEAT_COLORS.length] };
+    if (leftRemain > 0) {
+      leftSegs.push(seg);
+      if (g.count > leftRemain) overflowSegs.push({ ...seg, partial: true });
+      leftRemain -= g.count;
+      return;
+    }
+    if (rightRemain > 0) {
+      rightSegs.push(seg);
+      if (g.count > rightRemain) overflowSegs.push({ ...seg, partial: true });
+      rightRemain -= g.count;
+      return;
+    }
+    overflowSegs.push(seg);
+  });
+  const leftEmpty = Math.max(leftRemain, 0);
+  const rightEmpty = Math.max(rightRemain, 0);
+
+  return (
+    <div className="long-table-card">
+      <div className="long-table-head">
+        <span className="lt-title">{title}</span>
+        <span className={`lt-count ${over ? "over" : ""}`}>{heads} / {cap} 人{over ? " · 超出容量" : ""}</span>
+      </div>
+
+      <div className="long-table-side-label">左側 · {capLeft} 人</div>
+      <div className="long-table-visual">
+        {leftSegs.map((g) => (
+          <div key={g.id} className={`seat-block ${g.colorClass}`} style={{ flexGrow: g.count }} title={`${g.name} ×${g.count}`}>
+            <span className="seat-block-name">{g.name}</span>
+            <span className="seat-block-count">×{g.count}</span>
+          </div>
+        ))}
+        {leftEmpty > 0 && <div className="seat-block empty" style={{ flexGrow: leftEmpty }}>空位 ×{leftEmpty}</div>}
+      </div>
+
+      <div className="long-table-side-label">右側 · {capRight} 人</div>
+      <div className="long-table-visual">
+        {rightSegs.map((g) => (
+          <div key={g.id} className={`seat-block ${g.colorClass}`} style={{ flexGrow: g.count }} title={`${g.name} ×${g.count}`}>
+            <span className="seat-block-name">{g.name}</span>
+            <span className="seat-block-count">×{g.count}</span>
+          </div>
+        ))}
+        {rightEmpty > 0 && <div className="seat-block empty" style={{ flexGrow: rightEmpty }}>空位 ×{rightEmpty}</div>}
+      </div>
+
+      {overflowSegs.length > 0 && (
+        <div className="overflow-note">⚠ 超出容量，需要調整：{overflowSegs.map((g) => g.name).join("、")}</div>
+      )}
+      <div className="long-table-list">
+        {filteredList.map((g) => (
+          <div className="seat-chip" key={g.id}>
+            <span>{g.name}<span className="seat-count">×{g.count}</span></span>
+            <div className="seat-chip-actions">
+              <button onClick={() => onMove(g.id, otherTable)}>換到另一桌</button>
+              <button onClick={() => onRemove(g.id)}>移除</button>
+            </div>
+          </div>
+        ))}
+        {filteredList.length === 0 && <div className="empty-hint">沒有符合篩選條件的賓客</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cookies Tab — one box per party (household), qty editable          */
+/* ------------------------------------------------------------------ */
+function CookiesTab({ guests, cookieDone, cookieTotal, onToggle, onQtyChange, onCheckIn }) {
+  const [query, setQuery] = useState("");
+  const [sideFilter, setSideFilter] = useState("all");
+  const sorted = [...guests]
+    .filter((g) => g.name.includes(query))
+    .filter((g) => sideFilter === "all" || g.side === sideFilter)
+    .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
+  const pct = cookieTotal ? Math.round((cookieDone / cookieTotal) * 100) : 0;
+
+  const checkedInParties = guests.filter((g) => g.checkedIn).length;
+  const totalParties = guests.length;
+  const checkInPct = totalParties ? Math.round((checkedInParties / totalParties) * 100) : 0;
+
+  return (
+    <div className="pane">
+      <div className="cookie-progress-card">
+        <div className="cookie-progress-track"><div className="cookie-progress-fill checkin-fill" style={{ width: `${checkInPct}%` }} /></div>
+        <div className="cookie-progress-label">已報到 {checkedInParties} / {totalParties} 組（{checkInPct}%）</div>
+      </div>
+      <div className="cookie-progress-card">
+        <div className="cookie-progress-track"><div className="cookie-progress-fill" style={{ width: `${pct}%` }} /></div>
+        <div className="cookie-progress-label">已發喜餅 {cookieDone} / {cookieTotal} 份（{pct}%）· 預設一家一份，可依需要調整份數</div>
+      </div>
+
+      <div className="toolbar no-print">
+        <input className="search-input" placeholder="搜尋賓客姓名…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="side-filter">
+          {["all", "新郎", "新娘"].map((s) => (
+            <button key={s} className={`side-filter-btn ${sideFilter === s ? "active" : ""}`} onClick={() => setSideFilter(s)}>
+              {s === "all" ? "全部" : s}
+            </button>
+          ))}
+        </div>
+        <button className="btn-secondary" onClick={() => window.print()}>🖨 列印</button>
+      </div>
+
+      <div className="cookie-list">
+        {sorted.map((g) => (
+          <div className={`cookie-row ${g.cookieGiven ? "done" : ""}`} key={g.id}>
+            <label className="checkin-toggle" title="報到">
+              <input type="checkbox" checked={!!g.checkedIn} onChange={(e) => onCheckIn(g.id, e.target.checked)} />
+              <span className="checkin-toggle-label">報到</span>
+            </label>
+            <span className="cookie-name">{g.name}</span>
+            <span className="cookie-relation">{g.relation}</span>
+            <Pill tone={g.side === "新郎" ? "ink" : "rose"}>{g.side}</Pill>
+            <label className="cookie-toggle" title="已發喜餅">
+              <input type="checkbox" checked={!!g.cookieGiven} onChange={(e) => onToggle(g.id, e.target.checked)} />
+              <span className="cookie-qty-label">喜餅</span>
+            </label>
+            <input
+              type="number" min="0" className="mini-input"
+              value={g.cookieQty ?? 1}
+              onChange={(e) => onQtyChange(g.id, Number(e.target.value) || 0)}
+            />
+          </div>
+        ))}
+        {sorted.length === 0 && <div className="empty-hint">沒有符合的賓客</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Prep Tab — 婚前準備表                                                */
+/* ------------------------------------------------------------------ */
+function PrepTab({ items, onUpdate, onAdd, onRemove, onReorder }) {
+  const [newItemCat, setNewItemCat] = useState(null);
+  const [newItem, setNewItem] = useState({ item: "", content: "", vendor: "" });
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ item: "", content: "", vendor: "" });
+
+  const categories = [];
+  items.forEach((p) => {
+    if (!categories.includes(p.cat)) categories.push(p.cat);
+  });
+
+  const total = items.length;
+  const done = items.filter((p) => p.status === "已完成").length;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+
+  const cycleStatus = (p) => {
+    const idx = STATUS_CYCLE.indexOf(p.status);
+    const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+    onUpdate(p.id, { status: next });
+  };
+
+  const startEdit = (p) => {
+    setEditingId(p.id);
+    setEditDraft({ item: p.item, content: p.content || "", vendor: p.vendor || "" });
+  };
+  const saveEdit = (id) => {
+    if (!editDraft.item.trim()) return;
+    onUpdate(id, { item: editDraft.item, content: editDraft.content, vendor: editDraft.vendor });
+    setEditingId(null);
+  };
+
+  const moveWithinCategory = (cat, id, dir) => {
+    const catItems = items.filter((p) => p.cat === cat);
+    const idx = catItems.findIndex((p) => p.id === id);
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= catItems.length) return;
+    const otherId = catItems[swapIdx].id;
+    const fullIdxA = items.findIndex((p) => p.id === id);
+    const fullIdxB = items.findIndex((p) => p.id === otherId);
+    const next = [...items];
+    [next[fullIdxA], next[fullIdxB]] = [next[fullIdxB], next[fullIdxA]];
+    onReorder(next);
+  };
+
+  const submitNew = (cat) => {
+    if (!newItem.item.trim()) return;
+    onAdd({ cat, item: newItem.item, content: newItem.content, vendor: newItem.vendor, status: "未開始" });
+    setNewItem({ item: "", content: "", vendor: "" });
+    setNewItemCat(null);
+  };
+
+  return (
+    <div className="pane">
+      <div className="cookie-progress-card">
+        <div className="cookie-progress-track"><div className="cookie-progress-fill" style={{ width: `${pct}%` }} /></div>
+        <div className="cookie-progress-label">整體進度 {done} / {total}（{pct}%）</div>
+      </div>
+
+      {categories.map((cat) => {
+        const catItems = items.filter((p) => p.cat === cat);
+        return (
+          <div key={cat} className="prep-category">
+            <div className="prep-category-head">
+              <span className="section-title prep-title">{cat}</span>
+              <span className="prep-cat-count">{catItems.filter((p) => p.status === "已完成").length} / {catItems.length}</span>
+            </div>
+            <div className="prep-list">
+              {catItems.map((p, idx) =>
+                editingId === p.id ? (
+                  <div className="prep-add-row" key={p.id}>
+                    <input placeholder="項目名稱" value={editDraft.item} onChange={(e) => setEditDraft({ ...editDraft, item: e.target.value })} />
+                    <input placeholder="內容／備註" value={editDraft.content} onChange={(e) => setEditDraft({ ...editDraft, content: e.target.value })} />
+                    <input placeholder="廠商／負責人" value={editDraft.vendor} onChange={(e) => setEditDraft({ ...editDraft, vendor: e.target.value })} />
+                    <button className="btn-primary" onClick={() => saveEdit(p.id)}>儲存</button>
+                    <button className="btn-secondary" onClick={() => setEditingId(null)}>取消</button>
+                  </div>
+                ) : (
+                  <div className="prep-row" key={p.id}>
+                    <div className="reorder-col">
+                      <button className="btn-reorder" disabled={idx === 0} onClick={() => moveWithinCategory(cat, p.id, -1)}>▲</button>
+                      <button className="btn-reorder" disabled={idx === catItems.length - 1} onClick={() => moveWithinCategory(cat, p.id, 1)}>▼</button>
+                    </div>
+                    <button className={`status-pill status-${p.status}`} onClick={() => cycleStatus(p)}>{p.status}</button>
+                    <div className="prep-row-main" onClick={() => startEdit(p)}>
+                      <div className="prep-row-name">{p.item}</div>
+                      {(p.content || p.vendor) && (
+                        <div className="prep-row-sub">{p.content}{p.content && p.vendor ? " · " : ""}{p.vendor}</div>
+                      )}
+                    </div>
+                    <button className="btn-ghost-icon" onClick={() => startEdit(p)} title="編輯">✎</button>
+                    <button className="btn-ghost-danger" onClick={() => onRemove(p.id)}>✕</button>
+                  </div>
+                )
+              )}
+              {newItemCat === cat ? (
+                <div className="prep-add-row">
+                  <input placeholder="項目名稱" value={newItem.item} onChange={(e) => setNewItem({ ...newItem, item: e.target.value })} />
+                  <input placeholder="內容／備註" value={newItem.content} onChange={(e) => setNewItem({ ...newItem, content: e.target.value })} />
+                  <input placeholder="廠商／負責人" value={newItem.vendor} onChange={(e) => setNewItem({ ...newItem, vendor: e.target.value })} />
+                  <button className="btn-primary" onClick={() => submitNew(cat)}>新增</button>
+                  <button className="btn-secondary" onClick={() => setNewItemCat(null)}>取消</button>
+                </div>
+              ) : (
+                <button className="btn-add-inline" onClick={() => setNewItemCat(cat)}>＋ 新增項目</button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Timeline Tab — 當天時程規劃                                          */
+/* ------------------------------------------------------------------ */
+function TimelineTab({ items, onUpdate, onAdd, onRemove, onReorder }) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ time: "", title: "", note: "", owner: "" });
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ time: "", title: "", note: "", owner: "" });
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!form.time.trim() || !form.title.trim()) return;
+    onAdd({ ...form, done: false });
+    setForm({ time: "", title: "", note: "", owner: "" });
+    setShowForm(false);
+  };
+
+  const startEdit = (t) => {
+    setEditingId(t.id);
+    setEditDraft({ time: t.time || "", title: t.title || "", note: t.note || "", owner: t.owner || "" });
+  };
+  const saveEdit = (id) => {
+    if (!editDraft.time.trim() || !editDraft.title.trim()) return;
+    onUpdate(id, { time: editDraft.time, title: editDraft.title, note: editDraft.note, owner: editDraft.owner });
+    setEditingId(null);
+  };
+
+  const moveItem = (id, dir) => {
+    const idx = items.findIndex((t) => t.id === id);
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= items.length) return;
+    const next = [...items];
+    [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+    onReorder(next);
+  };
+
+  return (
+    <div className="pane">
+      <div className="toolbar no-print">
+        <div className="section-title timeline-title">婚禮當天流程</div>
+        <button className="btn-secondary" onClick={() => window.print()}>🖨 列印</button>
+        <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>{showForm ? "取消" : "＋ 新增時段"}</button>
+      </div>
+      <div className="toolbar-hint no-print">💡 用 ▲▼ 調整順序（時間文字只是顯示用，不會自動排序，請依實際順序手動排列）。</div>
+
+      {showForm && (
+        <form className="rsvp-form" onSubmit={submit}>
+          <div className="form-row">
+            <label>時間<input required placeholder="例如 13:30" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} /></label>
+            <label className="wide">流程內容<input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
+          </div>
+          <div className="form-row">
+            <label className="wide">備註<input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></label>
+            <label>負責人<input placeholder="例如 伴娘／司儀" value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} /></label>
+          </div>
+          <button className="btn-primary" type="submit">加入時程</button>
+        </form>
+      )}
+
+      <div className="timeline-list">
+        {items.map((t, i) =>
+          editingId === t.id ? (
+            <div className="prep-add-row timeline-edit-row" key={t.id}>
+              <input placeholder="時間" style={{ maxWidth: 80 }} value={editDraft.time} onChange={(e) => setEditDraft({ ...editDraft, time: e.target.value })} />
+              <input placeholder="流程內容" value={editDraft.title} onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })} />
+              <input placeholder="備註" value={editDraft.note} onChange={(e) => setEditDraft({ ...editDraft, note: e.target.value })} />
+              <input placeholder="負責人" style={{ maxWidth: 100 }} value={editDraft.owner} onChange={(e) => setEditDraft({ ...editDraft, owner: e.target.value })} />
+              <button className="btn-primary" onClick={() => saveEdit(t.id)}>儲存</button>
+              <button className="btn-secondary" onClick={() => setEditingId(null)}>取消</button>
+            </div>
+          ) : (
+            <div className={`timeline-row ${t.done ? "done" : ""}`} key={t.id}>
+              <div className="reorder-col timeline-reorder">
+                <button className="btn-reorder" disabled={i === 0} onClick={() => moveItem(t.id, -1)}>▲</button>
+                <button className="btn-reorder" disabled={i === items.length - 1} onClick={() => moveItem(t.id, 1)}>▼</button>
+              </div>
+              <div className="timeline-rail">
+                <div className="timeline-dot" />
+                {i !== items.length - 1 && <div className="timeline-line" />}
+              </div>
+              <div className="timeline-time">{t.time}</div>
+              <div className="timeline-body">
+                <div className="timeline-title-row">
+                  <label className="timeline-check">
+                    <input type="checkbox" checked={!!t.done} onChange={(e) => onUpdate(t.id, { done: e.target.checked })} />
+                    <span className="timeline-item-title">{t.title}</span>
+                  </label>
+                  <div className="timeline-row-actions">
+                    {t.owner && <Pill tone="gold">{t.owner}</Pill>}
+                    <button className="btn-ghost-icon" onClick={() => startEdit(t)} title="編輯">✎</button>
+                    <button className="btn-ghost-danger" onClick={() => onRemove(t.id)}>✕</button>
+                  </div>
+                </div>
+                {t.note && <div className="timeline-note">{t.note}</div>}
+              </div>
+            </div>
+          )
+        )}
+        {items.length === 0 && <div className="empty-hint">尚未安排時程</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Styles                                                              */
+/* ------------------------------------------------------------------ */
+function Style() {
+  return (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;600&display=swap');
+
+      .wp-root {
+        --ink: #26324a; --ink-soft: #4a5773; --paper: #faf6f0; --paper-deep: #f1eae0;
+        --rose: #c08579; --rose-deep: #a8695d; --sage: #7f9179; --gold: #b8944f;
+        --muted: #9a9186; --line: #e3d9ca;
+        font-family: 'Noto Sans TC', sans-serif; background: var(--paper); color: var(--ink);
+        min-height: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(38,50,74,0.08);
+      }
+      .wp-loading { display:flex; align-items:center; justify-content:center; min-height: 300px; }
+      .loading-mark { font-family: 'Noto Serif TC', serif; font-size: 22px; color: var(--rose-deep); letter-spacing: 0.05em; }
+
+      .wp-header { background: linear-gradient(135deg, var(--ink) 0%, #34456a 100%); color: var(--paper); padding: 28px 28px 22px; position: relative; }
+      .wp-eyebrow { font-size: 11px; letter-spacing: 0.18em; opacity: 0.7; text-transform: uppercase; margin-bottom: 6px; }
+      .wp-title { font-family: 'Noto Serif TC', serif; font-size: 34px; font-weight: 700; margin: 0; letter-spacing: 0.02em; }
+      .wp-title .amp { color: var(--rose); padding: 0 6px; font-weight: 400; }
+      .wp-sub { margin-top: 6px; font-size: 13px; opacity: 0.75; letter-spacing: 0.05em; }
+      .save-indicator { position: absolute; top: 24px; right: 28px; font-size: 11px; opacity: 0.65; letter-spacing: 0.05em; }
+      .save-error { color: #e0a99f; opacity: 1; }
+
+      .wp-tabs { display: flex; gap: 2px; background: var(--paper-deep); padding: 0 20px; overflow-x: auto; }
+      .wp-tab { border: none; background: transparent; padding: 14px 16px; font-size: 13.5px; font-family: 'Noto Sans TC', sans-serif; font-weight: 500; color: var(--ink-soft); cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+      .wp-tab:hover { color: var(--ink); }
+      .wp-tab.active { color: var(--rose-deep); border-bottom-color: var(--rose); font-weight: 600; }
+
+      .wp-main { padding: 22px 24px 32px; }
+      .pane { display: flex; flex-direction: column; gap: 18px; }
+
+      .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+      .stat-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+      .stat-value { font-family: 'Noto Serif TC', serif; font-size: 26px; font-weight: 700; line-height: 1.1; }
+      .stat-label { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+      .stat-sub { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+      .tone-rose .stat-value { color: var(--rose-deep); }
+      .tone-gold .stat-value { color: var(--gold); }
+      .tone-sage .stat-value { color: var(--sage); }
+      .tone-muted .stat-value { color: var(--muted); }
+      .tone-ink .stat-value { color: var(--ink); }
+
+      .side-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+      .side-label { font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; }
+      .side-bar-track { height: 8px; background: var(--paper-deep); border-radius: 4px; overflow: hidden; }
+      .side-bar-fill { height: 100%; border-radius: 4px; }
+      .side-bar-fill.groom { background: var(--ink); }
+      .side-bar-fill.bride { background: var(--rose); }
+      .side-num { font-size: 13px; margin-top: 6px; font-weight: 600; }
+
+      .section-title { font-family: 'Noto Serif TC', serif; font-size: 15px; font-weight: 600; color: var(--ink); border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-top: 4px; }
+
+      .note-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+      .note-card { background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--rose); border-radius: 8px; padding: 10px 12px; }
+      .note-name { font-size: 12px; font-weight: 700; color: var(--rose-deep); margin-bottom: 3px; }
+      .note-text { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; white-space: pre-wrap; }
+
+      .reply-list { display: flex; flex-direction: column; gap: 6px; }
+      .reply-row { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; cursor: pointer; }
+      .reply-row.done { background: #f6f1e8; border-color: var(--gold); }
+      .reply-row input { width: 15px; height: 15px; accent-color: var(--gold); }
+      .reply-name { font-weight: 700; min-width: 90px; }
+      .reply-relation { color: var(--muted); font-size: 11px; flex: 1; }
+      .reply-reminded-label { font-size: 11px; color: var(--muted); font-weight: 600; }
+      .reply-row.done .reply-reminded-label { color: var(--gold); }
+      .note-name { font-size: 12px; font-weight: 700; color: var(--rose-deep); margin-bottom: 3px; }
+      .note-text { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; white-space: pre-wrap; }
+
+      .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .search-input { flex: 1; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; font-size: 13px; background: #fff; min-width: 160px; }
+      .wide-search { flex: none; width: 100%; }
+      .btn-primary { background: var(--rose-deep); color: #fff; border: none; padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+      .btn-primary:hover { background: var(--ink); }
+      .btn-secondary { background: var(--paper-deep); color: var(--ink); border: 1px solid var(--line); padding: 8px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
+      .btn-secondary:hover { background: var(--gold); color: #fff; border-color: var(--gold); }
+      .btn-secondary:disabled { opacity: 0.6; cursor: default; }
+
+      .import-banner { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-radius: 8px; padding: 10px 14px; font-size: 12.5px; font-weight: 600; }
+      .import-banner.tone-success { background: #e2ebdf; color: #4c6b46; border: 1px solid #c7dcc0; }
+      .import-banner.tone-error { background: #fbe8e4; color: #a8453a; border: 1px solid #eec3ba; }
+      .import-banner button { background: none; border: none; cursor: pointer; color: inherit; font-size: 13px; }
+
+      .rsvp-form { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+      .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+      .form-row label, .rsvp-form > label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-soft); flex: 1; min-width: 110px; }
+      .form-row label.wide, .rsvp-form > label.wide { flex-basis: 100%; }
+      .rsvp-form input, .rsvp-form select, .rsvp-form textarea { border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font-size: 13px; font-family: inherit; color: var(--ink); }
+
+      .guest-table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+      .guest-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+      .guest-table th { text-align: left; font-weight: 600; color: var(--ink-soft); padding: 10px 10px; border-bottom: 1px solid var(--line); background: var(--paper-deep); font-size: 11.5px; }
+      .guest-table td { padding: 7px 10px; border-bottom: 1px solid #f0e9dd; vertical-align: middle; }
+      .cell-name { font-weight: 600; white-space: nowrap; }
+      .cell-relation { color: var(--ink-soft); font-size: 11.5px; }
+      .mini-input { width: 48px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; font-size: 12px; font-family: inherit; }
+      .mini-select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; font-size: 12px; font-family: inherit; }
+      .mail-check input { width: 16px; height: 16px; accent-color: var(--gold); }
+      .toolbar-hint { font-size: 11.5px; color: var(--ink-soft); background: #f6f1e8; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; line-height: 1.6; }
+      .link-btn { background: none; border: none; padding: 0; color: var(--rose-deep); font-weight: 700; text-decoration: underline; cursor: pointer; font-family: inherit; font-size: inherit; }
+      .gift-cell { display: flex; align-items: center; }
+      .gift-input { width: 64px; }
+      .btn-ghost-danger { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; }
+      .btn-ghost-danger:hover { color: var(--rose-deep); }
+      .empty-row { text-align: center; color: var(--muted); padding: 20px; }
+      .empty-hint { color: var(--muted); font-size: 12.5px; padding: 10px 0; }
+
+      .seating-controls { display: flex; align-items: center; gap: 14px; font-size: 12.5px; color: var(--ink-soft); flex-wrap: wrap; }
+      .seating-controls label { display: flex; align-items: center; gap: 6px; }
+      .side-filter { display: flex; gap: 4px; background: var(--paper-deep); border-radius: 8px; padding: 3px; }
+      .side-filter-btn { border: none; background: none; padding: 5px 12px; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); cursor: pointer; font-family: inherit; }
+      .side-filter-btn.active { background: var(--ink); color: #fff; }
+
+      .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+      .guest-chip { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+      .chip-name { font-weight: 600; }
+      .chip-count { color: var(--muted); font-size: 11px; }
+      .chip-actions { display: flex; gap: 4px; margin-left: 4px; }
+      .chip-actions button { border: 1px solid var(--line); background: var(--paper-deep); border-radius: 5px; padding: 3px 7px; font-size: 10.5px; cursor: pointer; color: var(--ink-soft); font-family: inherit; }
+      .chip-actions button:hover { background: var(--rose); color: #fff; border-color: var(--rose); }
+
+      .tables-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .long-table-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+      .long-table-head { display: flex; justify-content: space-between; align-items: center; background: var(--ink); color: #fff; padding: 10px 14px; }
+      .lt-title { font-family: 'Noto Serif TC', serif; font-weight: 600; font-size: 14px; }
+      .lt-count { font-size: 12px; opacity: 0.85; }
+      .lt-count.over { color: #f0b3a5; font-weight: 700; }
+
+      .long-table-side-label { font-size: 10.5px; color: var(--muted); font-weight: 700; margin: 10px 14px 3px; letter-spacing: 0.05em; }
+      .long-table-visual { display: flex; height: 40px; margin: 0 14px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+      .seat-block { display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #fff; border-right: 1px solid rgba(255,255,255,0.4); min-width: 34px; padding: 2px; text-align: center; line-height: 1.2; }
+      .seat-block-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+      .seat-block-count { font-size: 9px; opacity: 0.85; }
+      .seat-block.empty { background: repeating-linear-gradient(45deg, #f3ece0, #f3ece0 6px, #ece3d3 6px, #ece3d3 12px); color: var(--muted); font-weight: 600; }
+      .seat-c1 { background: var(--rose-deep); }
+      .seat-c2 { background: var(--ink); }
+      .seat-c3 { background: var(--sage); }
+      .seat-c4 { background: var(--gold); }
+
+      .overflow-note { margin: 8px 14px 0; font-size: 11.5px; color: #a8453a; background: #fbe8e4; border: 1px solid #eec3ba; border-radius: 6px; padding: 6px 10px; }
+
+      .long-table-list { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+      .seat-chip { display: flex; justify-content: space-between; align-items: center; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 12.5px; }
+      .seat-count { color: var(--muted); font-size: 11px; margin-left: 4px; }
+      .seat-chip-actions { display: flex; gap: 8px; }
+      .seat-chip-actions button { border: none; background: none; color: var(--muted); font-size: 11px; cursor: pointer; }
+      .seat-chip-actions button:hover { color: var(--rose-deep); }
+
+      .cookie-progress-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+      .cookie-progress-track { height: 10px; background: var(--paper-deep); border-radius: 5px; overflow: hidden; }
+      .cookie-progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--rose)); border-radius: 5px; transition: width 0.3s; }
+      .cookie-progress-label { margin-top: 8px; font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+
+      .cookie-list { display: flex; flex-direction: column; gap: 6px; }
+      .cookie-row { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; font-size: 12.5px; }
+      .cookie-row.done { background: #f6f1e8; border-color: var(--gold); }
+      .cookie-row input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--rose-deep); }
+      .cookie-name { font-weight: 700; min-width: 90px; }
+      .cookie-relation { color: var(--muted); font-size: 11px; flex: 1; }
+      .cookie-qty-label { color: var(--muted); font-size: 11px; }
+      .checkin-fill { background: linear-gradient(90deg, var(--sage), #a8c1a1); }
+      .checkin-toggle, .cookie-toggle { display: flex; align-items: center; gap: 4px; cursor: pointer; background: var(--paper-deep); border-radius: 6px; padding: 4px 8px; }
+      .checkin-toggle input, .cookie-toggle input { width: 15px; height: 15px; accent-color: var(--sage); }
+      .checkin-toggle-label { font-size: 10.5px; color: var(--ink-soft); font-weight: 700; }
+
+      .pill { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+      .pill.tone-ink { background: #e7eaf1; color: var(--ink); }
+      .pill.tone-rose { background: #f3e2de; color: var(--rose-deep); }
+
+      /* Prep tab */
+      .prep-category { display: flex; flex-direction: column; gap: 8px; }
+      .prep-category-head { display: flex; justify-content: space-between; align-items: baseline; }
+      .prep-title { flex: 1; margin-top: 0; }
+      .prep-cat-count { font-size: 11.5px; color: var(--muted); }
+      .prep-list { display: flex; flex-direction: column; gap: 6px; }
+      .prep-row { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+      .prep-row-main { flex: 1; min-width: 0; cursor: pointer; }
+      .btn-ghost-icon { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 4px; }
+      .btn-ghost-icon:hover { color: var(--gold); }
+      .reorder-col { display: flex; flex-direction: column; gap: 1px; }
+      .btn-reorder { background: var(--paper-deep); border: 1px solid var(--line); color: var(--ink-soft); font-size: 8px; width: 18px; height: 15px; line-height: 1; cursor: pointer; padding: 0; border-radius: 3px; }
+      .btn-reorder:hover:not(:disabled) { background: var(--rose); color: #fff; border-color: var(--rose); }
+      .btn-reorder:disabled { opacity: 0.3; cursor: default; }
+      .timeline-reorder { padding-top: 2px; }
+      .timeline-row-actions { display: flex; gap: 6px; align-items: center; }
+      .timeline-edit-row { margin-left: 26px; }
+      .prep-row-name { font-size: 13px; font-weight: 600; }
+      .prep-row-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+      .status-pill { border: none; border-radius: 999px; padding: 4px 10px; font-size: 10.5px; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap; }
+      .status-未開始 { background: #efe9df; color: var(--muted); }
+      .status-進行中 { background: #f3e2ca; color: var(--gold); }
+      .status-已完成 { background: #e2ebdf; color: var(--sage); }
+      .btn-add-inline { align-self: flex-start; background: none; border: 1px dashed var(--line); color: var(--ink-soft); font-size: 11.5px; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+      .btn-add-inline:hover { border-color: var(--rose); color: var(--rose-deep); }
+      .prep-add-row { display: flex; flex-wrap: wrap; gap: 6px; background: var(--paper-deep); border-radius: 8px; padding: 8px; }
+      .prep-add-row input { flex: 1; min-width: 100px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; font-family: inherit; }
+
+      /* Timeline tab */
+      .timeline-title { border-bottom: none; padding-bottom: 0; margin-top: 0; }
+      .timeline-list { display: flex; flex-direction: column; }
+      .timeline-row { display: flex; gap: 12px; }
+      .timeline-rail { display: flex; flex-direction: column; align-items: center; width: 14px; }
+      .timeline-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--rose-deep); margin-top: 4px; flex-shrink: 0; }
+      .timeline-row.done .timeline-dot { background: var(--sage); }
+      .timeline-line { width: 2px; flex: 1; background: var(--line); margin-top: 2px; }
+      .timeline-time { width: 48px; flex-shrink: 0; font-family: 'Noto Serif TC', serif; font-weight: 700; font-size: 13px; color: var(--ink); padding-top: 1px; }
+      .timeline-body { flex: 1; padding-bottom: 16px; min-width: 0; }
+      .timeline-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .timeline-check { display: flex; align-items: center; gap: 8px; cursor: pointer; min-width: 0; }
+      .timeline-check input { width: 15px; height: 15px; accent-color: var(--sage); flex-shrink: 0; }
+      .timeline-item-title { font-size: 13.5px; font-weight: 600; }
+      .timeline-row.done .timeline-item-title { color: var(--muted); text-decoration: line-through; }
+      .timeline-note { font-size: 11.5px; color: var(--ink-soft); margin-top: 3px; margin-left: 23px; line-height: 1.5; }
+
+      @media (max-width: 640px) {
+        .tables-grid { grid-template-columns: 1fr; }
+        .wp-title { font-size: 26px; }
+      }
+
+      @media print {
+        body { background: #fff; }
+        .wp-root { box-shadow: none; border-radius: 0; }
+        .wp-tabs, .save-indicator, .no-print, .no-print-inline,
+        .btn-ghost-icon, .btn-ghost-danger, .reorder-col,
+        .chip-actions, .seat-chip-actions, .import-banner { display: none !important; }
+        .wp-header { background: #fff !important; color: var(--ink) !important; padding: 0 0 12px; }
+        .wp-header .amp { color: var(--rose-deep); }
+        .long-table-list, .prep-list, .timeline-list { break-inside: avoid; }
+      }
+    `}</style>
+  );
+}
